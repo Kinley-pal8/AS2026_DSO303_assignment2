@@ -1,6 +1,6 @@
 # Design and Implementation of a Highly Available Online Examination Platform on AWS
 
-DSO303 Assignment 2 · Student name / ID: ______________ · 19 November 2026
+DSO303 Assignment 2 ·  19 November 2026
 
 ## Abstract
 
