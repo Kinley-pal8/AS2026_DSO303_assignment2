@@ -26,3 +26,7 @@ Screenshots are in [`screenshots/`](screenshots/). The matching lab exports are 
 | `aws-results-email.png` | Student's "Result released" e-mail |
 | `aws-cloudwatch-dashboard.png` | Dashboard during the demo |
 | `az-failover-*.log` | Output of `scripts/simulate-az-failover.sh` (written here automatically) |
+
+## CI test job (local run)
+
+[`ci-local-test-run.log`](ci-local-test-run.log): the same steps as the pipeline's `test` job, run locally while GitHub Actions was blocked by an account billing lock. 17 unit tests passed, `terraform fmt` and `validate` passed, and `terraform test` passed for both the production and Learner Lab profiles.

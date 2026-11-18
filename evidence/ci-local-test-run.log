@@ -1,0 +1,29 @@
+# Local run of the CI 'test' job (.github/workflows/deploy.yml)
+# Run because GitHub Actions was blocked by an account billing lock.
+# Date: 2026-11-18 21:07 UTC | Python 3.14.8 | Terraform v1.17.2
+
+$ pytest -q
+.................                                                        [100%]
+17 passed in 0.02s
+exit=0
+
+$ terraform -chdir=infra fmt -check -recursive
+exit=0
+
+$ terraform -chdir=infra init -backend=false -input=false
+Terraform has been successfully initialized!
+exit=0
+
+$ terraform -chdir=infra validate
+Success! The configuration is valid, but there were some validation warnings
+(2 deprecation warnings: DynamoDB hash_key/range_key syntax, non-blocking)
+exit=0
+
+$ terraform -chdir=infra test
+tests/profiles.tftest.hcl... in progress
+  run "production_profile"... pass
+  run "learner_lab_profile"... pass
+tests/profiles.tftest.hcl... tearing down
+tests/profiles.tftest.hcl... pass
+Success! 2 passed, 0 failed.
+exit=0
