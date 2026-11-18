@@ -1,0 +1,74 @@
+flowchart TB
+  user(["Students · Tutors · Admins<br/>browser"])
+  dev(["Developer<br/>git push main"])
+
+  subgraph EDGE["Edge (global)"]
+    r53["Route 53<br/>exams.uni.edu"]
+    waf["AWS WAF<br/>managed rules + IP rate limit"]
+    cf["CloudFront<br/>TLS 1.2+, HTTP/3<br/>/ → S3 · /api/* → API"]
+    acm["ACM certificate<br/>us-east-1"]
+  end
+
+  subgraph REGION["AWS Region ap-south-1"]
+    s3web[("S3 web bucket<br/>private, OAC")]
+    cognito["Cognito User Pool<br/>groups: students / tutors / admins<br/>PKCE, optional MFA"]
+    apigw["API Gateway HTTP API<br/>JWT authorizer · throttling"]
+    ddb[("DynamoDB attempts<br/>on-demand · PITR · KMS")]
+    s3up[("S3 uploads bucket<br/>SSE-KMS · versioned<br/>IA 30d → Glacier IR 180d → Deep Archive 1y → delete 5y")]
+    sqsm[["SQS marking + DLQ"]]
+    sqsu[["SQS uploads + DLQ"]]
+    sqsn[["SQS notifications + DLQ"]]
+    eb["EventBridge<br/>every 1 min"]
+    notifier["λ notifier"]
+    sweeper["λ sweeper<br/>auto-submit on timeout"]
+    ses["Amazon SES<br/>e-mail"]
+    kms["KMS CMK<br/>rotation on"]
+    sm["Secrets Manager<br/>DB master secret, auto-rotated"]
+    cw["CloudWatch<br/>logs · metrics · alarms · dashboard<br/>X-Ray traces"]
+    sns["SNS → on-call e-mail"]
+    backup["AWS Backup<br/>daily 35d · monthly 5y"]
+
+    subgraph VPC["VPC 10.20.0.0/16"]
+      subgraph AZA["Availability Zone A"]
+        pubA["Public subnet 10.20.0.0/24<br/>NAT gateway A"]
+        appA["Private app subnet 10.20.10.0/24<br/>λ api · λ marker · λ uploads"]
+        dataA["Private data subnet 10.20.20.0/24<br/>RDS PostgreSQL PRIMARY<br/>RDS Proxy endpoint"]
+      end
+      subgraph AZB["Availability Zone B"]
+        pubB["Public subnet 10.20.1.0/24<br/>NAT gateway B"]
+        appB["Private app subnet 10.20.11.0/24<br/>λ api · λ marker · λ uploads"]
+        dataB["Private data subnet 10.20.21.0/24<br/>RDS PostgreSQL STANDBY<br/>RDS Proxy endpoint"]
+      end
+      gwe["Gateway endpoints<br/>S3 · DynamoDB"]
+    end
+  end
+
+  subgraph CICD["CI/CD"]
+    gh["GitHub Actions<br/>test → terraform apply → invalidate"]
+    state[("S3 Terraform state")]
+  end
+
+  user --> r53 --> cf
+  waf -. inspects .- cf
+  acm -.- cf
+  cf -->|static files| s3web
+  cf -->|/api/*| apigw
+  user -->|sign-in, PKCE| cognito
+  apigw -. validates JWT .- cognito
+  apigw --> appA & appB
+  appA & appB -->|IAM-auth TLS| dataA
+  dataA <-->|synchronous replication| dataB
+  appA & appB --> gwe --> ddb & s3up
+  appA & appB -->|AWS APIs| pubA & pubB
+  user -->|presigned POST ≤50 MB| s3up
+  s3up -->|ObjectCreated| sqsu --> appA
+  appA --> sqsm --> appB
+  appB --> sqsn --> notifier --> ses
+  eb --> sweeper --> ddb
+  sweeper --> sqsm
+  sm -.- dataA
+  kms -.- ddb & s3up & dataA & sm
+  backup -.- ddb & dataA
+  appA & appB & notifier & apigw --> cw --> sns
+  dev --> gh --> state
+  gh -->|OIDC role| REGION
