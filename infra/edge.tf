@@ -113,6 +113,7 @@ locals {
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
+  count                             = var.web_origin_public ? 0 : 1
   name                              = "${local.name}-frontend"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -129,10 +130,23 @@ resource "aws_cloudfront_distribution" "main" {
   web_acl_id          = var.enable_waf ? aws_wafv2_web_acl.main[0].arn : null
   aliases             = var.domain_name != "" ? [var.domain_name] : []
 
+  # Production: private bucket read through Origin Access Control. Learner Lab (web_origin_public):
+  # the lab denies cloudfront:CreateOriginAccessControl, so the static SPA is served from the
+  # bucket's public website endpoint instead. Only the web bucket is public; uploads stay private.
   origin {
     origin_id                = "frontend"
-    domain_name              = local.web_bucket_domain
-    origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+    domain_name              = var.web_origin_public ? aws_s3_bucket_website_configuration.frontend[0].website_endpoint : local.web_bucket_domain
+    origin_access_control_id = var.web_origin_public ? null : aws_cloudfront_origin_access_control.frontend[0].id
+
+    dynamic "custom_origin_config" {
+      for_each = var.web_origin_public ? [1] : []
+      content {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "http-only" # S3 website endpoints are HTTP only; viewers still use HTTPS
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
+    }
   }
 
   origin {

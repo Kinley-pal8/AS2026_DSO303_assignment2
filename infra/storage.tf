@@ -152,9 +152,17 @@ locals {
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket                  = local.web_bucket
   block_public_acls       = true
-  block_public_policy     = true
+  block_public_policy     = !var.web_origin_public
   ignore_public_acls      = true
-  restrict_public_buckets = true
+  restrict_public_buckets = !var.web_origin_public
+}
+
+resource "aws_s3_bucket_website_configuration" "frontend" {
+  count  = var.web_origin_public ? 1 : 0
+  bucket = local.web_bucket
+  index_document {
+    suffix = "index.html"
+  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
@@ -168,7 +176,16 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = local.web_bucket
-  policy = jsonencode({
+  policy = var.web_origin_public ? jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "PublicReadStaticSite" # Learner Lab only: static HTML/JS/CSS, no data
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "${local.web_bucket_arn}/*"
+    }]
+    }) : jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Sid       = "AllowCloudFrontOAC"

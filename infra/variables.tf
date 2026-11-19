@@ -157,3 +157,9 @@ variable "create_buckets_with_cli" {
   type        = bool
   default     = false
 }
+
+variable "web_origin_public" {
+  description = "Serve the static SPA from the bucket's public website endpoint instead of a private bucket + Origin Access Control (AWS Academy Learner Lab denies cloudfront:CreateOriginAccessControl)."
+  type        = bool
+  default     = false
+}
