@@ -8,7 +8,7 @@ locals {
   name       = "${var.project}-${var.environment}"
   account_id = data.aws_caller_identity.current.account_id
   azs        = slice(data.aws_availability_zones.available.names, 0, 2)
-  app_url    = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.main.domain_name}"
+  app_url    = !var.enable_cloudfront ? aws_apigatewayv2_api.main.api_endpoint : var.domain_name != "" ? "https://${var.domain_name}" : "https://${one(aws_cloudfront_distribution.main[*].domain_name)}"
 
   # Feature switches (see variables.tf / learner-lab.tfvars)
   use_existing_role = var.existing_role_name != ""

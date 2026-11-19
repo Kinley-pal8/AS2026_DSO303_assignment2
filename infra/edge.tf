@@ -113,7 +113,7 @@ locals {
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  count                             = var.web_origin_public ? 0 : 1
+  count                             = var.enable_cloudfront && !var.web_origin_public ? 1 : 0
   name                              = "${local.name}-frontend"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -121,6 +121,7 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 }
 
 resource "aws_cloudfront_distribution" "main" {
+  count               = var.enable_cloudfront ? 1 : 0
   enabled             = true
   comment             = "${local.name} exam platform"
   default_root_object = "index.html"
@@ -235,8 +236,8 @@ resource "aws_route53_record" "site" {
   name     = var.domain_name
   type     = each.value
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
+    name                   = one(aws_cloudfront_distribution.main[*].domain_name)
+    zone_id                = one(aws_cloudfront_distribution.main[*].hosted_zone_id)
     evaluate_target_health = false
   }
 }

@@ -84,15 +84,17 @@ run "learner_lab_profile" {
   command = plan
 
   variables {
-    region               = "us-east-1"
-    existing_role_name   = "LabRole"
-    use_customer_kms_key = false
-    enable_rds_proxy     = false
-    enable_waf           = false
-    enable_backup        = false
-    enable_flow_logs     = false
-    enable_ses           = false
-    nat_gateway_per_az   = false
+    region                  = "us-east-1"
+    existing_role_name      = "LabRole"
+    use_customer_kms_key    = false
+    enable_rds_proxy        = false
+    enable_waf              = false
+    enable_backup           = false
+    enable_flow_logs        = false
+    enable_ses              = false
+    nat_gateway_per_az      = false
+    enable_cloudfront       = false
+    create_buckets_with_cli = true
   }
 
   assert {
@@ -106,6 +108,10 @@ run "learner_lab_profile" {
   assert {
     condition     = aws_db_instance.main.multi_az && length(aws_vpc_security_group_ingress_rule.db_from_lambda) == 1
     error_message = "database must stay Multi-AZ and accept Lambda directly"
+  }
+  assert {
+    condition     = length(aws_cloudfront_distribution.main) == 0 && contains(keys(aws_lambda_function.fn), "web") && length(aws_apigatewayv2_route.web) == 2
+    error_message = "without CloudFront, API Gateway must serve the SPA through the web Lambda"
   }
   assert {
     condition     = aws_lambda_function.fn["api"].environment[0].variables["DB_AUTH"] == "secret" && aws_lambda_function.fn["notifier"].environment[0].variables["EMAIL_MODE"] == "log"

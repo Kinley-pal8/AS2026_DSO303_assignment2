@@ -13,4 +13,4 @@ enable_ses              = false # e-mails are written to CloudWatch Logs (/aws/l
 nat_gateway_per_az      = false # one NAT saves lab credit; set true for the AZ-failure screenshot
 db_multi_az             = true  # two-AZ database (rubric requirement)
 create_buckets_with_cli = true  # lab SCP denies s3:GetBucketObjectLockConfiguration
-web_origin_public       = true  # lab denies cloudfront:CreateOriginAccessControl; only static files are public
+enable_cloudfront       = false # lab denies cloudfront:CreateDistribution; API Gateway serves the SPA over HTTPS

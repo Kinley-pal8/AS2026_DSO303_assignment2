@@ -4,7 +4,7 @@ output "app_url" {
 }
 
 output "cloudfront_distribution_id" {
-  value = aws_cloudfront_distribution.main.id
+  value = one(aws_cloudfront_distribution.main[*].id)
 }
 
 output "api_endpoint_direct" {

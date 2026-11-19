@@ -5,13 +5,15 @@ data "archive_file" "lambda" {
 }
 
 locals {
-  functions = {
+  functions = merge({
     api      = { handler = "api.handler", timeout = 15, memory = 512, vpc = true }
     marker   = { handler = "marker.handler", timeout = 30, memory = 256, vpc = true }
     uploads  = { handler = "uploads.handler", timeout = 30, memory = 256, vpc = true }
     notifier = { handler = "notifier.handler", timeout = 30, memory = 128, vpc = false }
     sweeper  = { handler = "sweeper.handler", timeout = 60, memory = 128, vpc = false }
-  }
+    }, var.enable_cloudfront ? {} : {
+    web = { handler = "web.handler", timeout = 5, memory = 128, vpc = false } # serves the SPA without CloudFront
+  })
 
   lambda_env = {
     TABLE_NAME        = aws_dynamodb_table.attempts.name
@@ -27,7 +29,8 @@ locals {
     USER_POOL_ID      = aws_cognito_user_pool.main.id
     SENDER_EMAIL      = var.ses_sender_email
     APP_URL           = local.app_url
-    ORIGIN_SECRET     = random_password.origin_verify.result
+    ORIGIN_SECRET     = var.enable_cloudfront ? random_password.origin_verify.result : "" # no CloudFront = no origin header to check
+    FRONTEND_CONFIG   = local.frontend_config
     GRACE_SECONDS     = "60"
   }
 
@@ -154,6 +157,7 @@ locals {
     uploads  = data.aws_iam_policy_document.uploads.json
     notifier = data.aws_iam_policy_document.notifier.json
     sweeper  = data.aws_iam_policy_document.sweeper.json
+    web      = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Action = "xray:PutTraceSegments", Resource = "*" }] })
   }
 }
 

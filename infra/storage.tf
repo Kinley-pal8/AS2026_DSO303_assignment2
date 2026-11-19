@@ -117,7 +117,7 @@ resource "aws_s3_bucket_notification" "uploads" {
 
 # ---------------------------------------------------------------- frontend (static SPA)
 resource "aws_s3_bucket" "frontend" {
-  count         = var.create_buckets_with_cli ? 0 : 1
+  count         = var.enable_cloudfront && !var.create_buckets_with_cli ? 1 : 0
   bucket        = "${local.name}-web-${local.account_id}"
   force_destroy = true # rebuilt from git on every deploy
 }
@@ -128,7 +128,7 @@ resource "aws_s3_bucket" "frontend" {
 # create_buckets_with_cli = true the two buckets are created/deleted by the AWS CLI from Terraform
 # instead; every other bucket setting (policy, encryption, lifecycle, CORS, events) stays in Terraform.
 resource "terraform_data" "bucket" {
-  for_each = var.create_buckets_with_cli ? toset(["${local.name}-uploads-${local.account_id}", "${local.name}-web-${local.account_id}"]) : toset([])
+  for_each = var.create_buckets_with_cli ? toset(compact(["${local.name}-uploads-${local.account_id}", var.enable_cloudfront ? "${local.name}-web-${local.account_id}" : ""])) : toset([])
   input    = each.key
 
   provisioner "local-exec" {
@@ -144,12 +144,13 @@ resource "terraform_data" "bucket" {
 locals {
   uploads_bucket     = var.create_buckets_with_cli ? terraform_data.bucket["${local.name}-uploads-${local.account_id}"].output : aws_s3_bucket.uploads[0].id
   uploads_bucket_arn = "arn:aws:s3:::${local.uploads_bucket}"
-  web_bucket         = var.create_buckets_with_cli ? terraform_data.bucket["${local.name}-web-${local.account_id}"].output : aws_s3_bucket.frontend[0].id
+  web_bucket         = !var.enable_cloudfront ? "" : var.create_buckets_with_cli ? try(terraform_data.bucket["${local.name}-web-${local.account_id}"].output, "") : try(aws_s3_bucket.frontend[0].id, "")
   web_bucket_arn     = "arn:aws:s3:::${local.web_bucket}"
   web_bucket_domain  = "${local.web_bucket}.s3.${var.region}.amazonaws.com"
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
+  count                   = var.enable_cloudfront ? 1 : 0
   bucket                  = local.web_bucket
   block_public_acls       = true
   block_public_policy     = !var.web_origin_public
@@ -158,7 +159,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 }
 
 resource "aws_s3_bucket_website_configuration" "frontend" {
-  count  = var.web_origin_public ? 1 : 0
+  count  = var.enable_cloudfront && var.web_origin_public ? 1 : 0
   bucket = local.web_bucket
   index_document {
     suffix = "index.html"
@@ -166,6 +167,7 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = local.web_bucket
   rule {
     apply_server_side_encryption_by_default {
@@ -175,6 +177,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 }
 
 resource "aws_s3_bucket_policy" "frontend" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = local.web_bucket
   policy = var.web_origin_public ? jsonencode({
     Version = "2012-10-17"
@@ -193,7 +196,7 @@ resource "aws_s3_bucket_policy" "frontend" {
       Principal = { Service = "cloudfront.amazonaws.com" }
       Action    = "s3:GetObject"
       Resource  = "${local.web_bucket_arn}/*"
-      Condition = { StringEquals = { "AWS:SourceArn" = aws_cloudfront_distribution.main.arn } }
+      Condition = { StringEquals = { "AWS:SourceArn" = one(aws_cloudfront_distribution.main[*].arn) } }
     }]
   })
   depends_on = [aws_s3_bucket_public_access_block.frontend]
@@ -214,7 +217,7 @@ locals {
 }
 
 resource "aws_s3_object" "frontend" {
-  for_each      = local.frontend_files
+  for_each      = var.enable_cloudfront ? local.frontend_files : toset([])
   bucket        = local.web_bucket
   key           = each.value
   source        = "${local.frontend_dir}/${each.value}"
@@ -224,6 +227,7 @@ resource "aws_s3_object" "frontend" {
 }
 
 resource "aws_s3_object" "frontend_config" {
+  count         = var.enable_cloudfront ? 1 : 0
   bucket        = local.web_bucket
   key           = "config.js"
   content_type  = "application/javascript"

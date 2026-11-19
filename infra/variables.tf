@@ -163,3 +163,9 @@ variable "web_origin_public" {
   type        = bool
   default     = false
 }
+
+variable "enable_cloudfront" {
+  description = "Serve the app through CloudFront (+WAF). False = API Gateway serves the SPA too, via the 'web' Lambda (AWS Academy Learner Lab denies cloudfront:CreateDistribution)."
+  type        = bool
+  default     = true
+}

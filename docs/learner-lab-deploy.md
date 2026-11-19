@@ -18,11 +18,11 @@ Learner Lab gives free credits but has three limits that matter here:
 | E-mail through SES | Each e-mail is written to CloudWatch Logs (`/aws/lambda/uniexam-prod-notifier`) | SES is not usable in the lab |
 | GitHub OIDC deploy role | GitHub secrets hold the lab's session keys | OIDC needs an IAM role |
 | NAT gateway in each AZ | One NAT (switch to two for the AZ-failure screenshot) | Saves lab credit |
-| Private web bucket read by CloudFront through Origin Access Control | CloudFront reads the static app from the bucket's public website endpoint (`web_origin_public`). Only HTML/JS/CSS are public; the API and uploads bucket stay private | The lab denies `cloudfront:CreateOriginAccessControl` |
+| CloudFront (+WAF) in front of the app and API | API Gateway serves both the app (through a small `web` Lambda) and `/api/*` over HTTPS (`enable_cloudfront = false`) | The lab denies `cloudfront:CreateDistribution` and `cloudfront:CreateOriginAccessControl` |
 | S3 buckets as `aws_s3_bucket` resources | The two buckets are created and deleted by the AWS CLI from Terraform (`create_buckets_with_cli`); all their settings stay in Terraform | The lab's service control policy denies `s3:GetBucketObjectLockConfiguration`, which the bucket resource always reads |
 | CloudFront managed policies looked up by name | Their fixed AWS IDs are used directly | The lab denies `cloudfront:List*Policies` |
 
-Unchanged: the two-AZ VPC (public, app and data subnets), CloudFront, Cognito, API Gateway, Lambda, **RDS Multi-AZ**, DynamoDB, S3 with lifecycle rules, SQS with dead-letter queues, EventBridge, CloudWatch alarms and dashboard, and the push-to-deploy pipeline.
+Unchanged: the two-AZ VPC (public, app and data subnets), Cognito, API Gateway, Lambda, **RDS Multi-AZ**, DynamoDB, S3 with lifecycle rules, SQS with dead-letter queues, EventBridge, CloudWatch alarms and dashboard, and the push-to-deploy pipeline.
 
 If you want to test whether the lab allows one of the switched-off services, set its line in `learner-lab.tfvars` to `true` and apply. If the apply fails with `AccessDenied`, set it back to `false`.
 
