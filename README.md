@@ -94,6 +94,8 @@ terraform apply
 5. As the admin, **invite a tutor and a student** from the Users panel. Use addresses you can open: plus-addressing such as `you+tutor@gmail.com` works.
 
 ### 5. Check it works and capture evidence
+
+> **Deployed and verified on 19 November 2026** in AWS Academy Learner Lab (us-east-1) from AWS CloudShell. Every step below was run; the screenshots and the measured AZ-failover result (API outage of at most 17 seconds in three runs, no data lost) are listed in [`evidence/README.md`](evidence/README.md#aws-deployment-aws-academy-learner-lab-us-east-1).
 Take each screenshot as you go and save it in `evidence/` under the filename shown.
 
 1. **Tutor**: create an exam (sample questions are pre-filled) and an assignment.
