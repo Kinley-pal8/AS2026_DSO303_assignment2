@@ -19,7 +19,9 @@ echo "$(date +%T) forced failover requested" | tee -a "$LOG"
 BEFORE=$(az_of | awk '{print $1}')
 down_since=""; up_at=""
 for i in $(seq 1 150); do
-  code=$(curl -s -m 5 -o /tmp/health.json -w '%{http_code}' "$APP_URL/api/health?deep=1" || echo 000)
+  rm -f /tmp/health.json
+  code=$(curl -s -m 5 -o /tmp/health.json -w "%{http_code}" "$APP_URL/api/health?deep=1" || true)
+  [[ "$code" == "000" ]] && echo "{\"error\": \"timeout or connection reset\"}" > /tmp/health.json
   echo "$(date +%T) HTTP $code $(cat /tmp/health.json 2>/dev/null)" | tee -a "$LOG"
   now=$(date +%s)
   if [[ "$code" != "200" && -z "$down_since" ]]; then down_since=$now; fi
