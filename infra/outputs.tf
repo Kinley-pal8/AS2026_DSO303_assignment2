@@ -25,7 +25,7 @@ output "cognito_domain" {
 }
 
 output "uploads_bucket" {
-  value = aws_s3_bucket.uploads.bucket
+  value = local.uploads_bucket
 }
 
 output "attempts_table" {

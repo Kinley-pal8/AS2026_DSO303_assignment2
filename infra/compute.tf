@@ -17,7 +17,7 @@ locals {
     TABLE_NAME        = aws_dynamodb_table.attempts.name
     MARKING_QUEUE_URL = aws_sqs_queue.marking.url
     NOTIFY_QUEUE_URL  = aws_sqs_queue.notifications.url
-    UPLOAD_BUCKET     = aws_s3_bucket.uploads.bucket
+    UPLOAD_BUCKET     = local.uploads_bucket
     DB_HOST           = local.db_host
     DB_AUTH           = var.enable_rds_proxy ? "iam" : "secret"
     DB_SECRET_ARN     = local.db_secret_arn
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "api" {
   statement {
     sid       = "PresignUploadsAndDownloads"
     actions   = ["s3:PutObject", "s3:GetObject"]
-    resources = ["${aws_s3_bucket.uploads.arn}/submissions/*"]
+    resources = ["${local.uploads_bucket_arn}/submissions/*"]
   }
   statement {
     actions   = local.kms_data_actions
@@ -104,7 +104,7 @@ data "aws_iam_policy_document" "uploads" {
   }
   statement {
     actions   = ["s3:GetObject", "s3:PutObjectTagging"]
-    resources = ["${aws_s3_bucket.uploads.arn}/submissions/*"]
+    resources = ["${local.uploads_bucket_arn}/submissions/*"]
   }
   statement {
     actions   = local.kms_data_actions

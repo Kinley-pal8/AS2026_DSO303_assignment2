@@ -59,7 +59,7 @@ resource "aws_sqs_queue_policy" "uploads" {
       Action    = "sqs:SendMessage"
       Resource  = aws_sqs_queue.uploads.arn
       Condition = {
-        ArnEquals    = { "aws:SourceArn" = aws_s3_bucket.uploads.arn }
+        ArnEquals    = { "aws:SourceArn" = local.uploads_bucket_arn }
         StringEquals = { "aws:SourceAccount" = local.account_id }
       }
     }]

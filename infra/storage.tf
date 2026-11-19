@@ -1,11 +1,12 @@
 # ---------------------------------------------------------------- assignment uploads
 resource "aws_s3_bucket" "uploads" {
+  count         = var.create_buckets_with_cli ? 0 : 1
   bucket        = "${local.name}-uploads-${local.account_id}"
   force_destroy = !var.protect_data
 }
 
 resource "aws_s3_bucket_public_access_block" "uploads" {
-  bucket                  = aws_s3_bucket.uploads.id
+  bucket                  = local.uploads_bucket
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -13,21 +14,21 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   rule {
     object_ownership = "BucketOwnerEnforced"
   }
 }
 
 resource "aws_s3_bucket_versioning" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = var.use_customer_kms_key ? "aws:kms" : "AES256"
@@ -39,7 +40,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
 
 # Records kept 5 years, getting cheaper as they age.
 resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
 
   rule {
     id     = "submissions-5-year-retention"
@@ -78,7 +79,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
 }
 
 resource "aws_s3_bucket_cors_configuration" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   cors_rule {
     allowed_methods = ["POST", "GET"]
     allowed_origins = [local.app_url]
@@ -89,7 +90,7 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
 }
 
 resource "aws_s3_bucket_policy" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -97,7 +98,7 @@ resource "aws_s3_bucket_policy" "uploads" {
       Effect    = "Deny"
       Principal = "*"
       Action    = "s3:*"
-      Resource  = [aws_s3_bucket.uploads.arn, "${aws_s3_bucket.uploads.arn}/*"]
+      Resource  = [local.uploads_bucket_arn, "${local.uploads_bucket_arn}/*"]
       Condition = { Bool = { "aws:SecureTransport" = "false" } }
     }]
   })
@@ -105,7 +106,7 @@ resource "aws_s3_bucket_policy" "uploads" {
 }
 
 resource "aws_s3_bucket_notification" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
+  bucket = local.uploads_bucket
   queue {
     queue_arn     = aws_sqs_queue.uploads.arn
     events        = ["s3:ObjectCreated:*"]
@@ -116,12 +117,40 @@ resource "aws_s3_bucket_notification" "uploads" {
 
 # ---------------------------------------------------------------- frontend (static SPA)
 resource "aws_s3_bucket" "frontend" {
+  count         = var.create_buckets_with_cli ? 0 : 1
   bucket        = "${local.name}-web-${local.account_id}"
   force_destroy = true # rebuilt from git on every deploy
 }
 
+# ---------------------------------------------------------------- Learner Lab bucket workaround
+# The AWS Academy Learner Lab service control policy denies s3:GetBucketObjectLockConfiguration,
+# which the aws_s3_bucket resource always reads, so it can never apply there. With
+# create_buckets_with_cli = true the two buckets are created/deleted by the AWS CLI from Terraform
+# instead; every other bucket setting (policy, encryption, lifecycle, CORS, events) stays in Terraform.
+resource "terraform_data" "bucket" {
+  for_each = var.create_buckets_with_cli ? toset(["${local.name}-uploads-${local.account_id}", "${local.name}-web-${local.account_id}"]) : toset([])
+  input    = each.key
+
+  provisioner "local-exec" {
+    command = "aws s3api head-bucket --bucket ${self.input} 2>/dev/null || aws s3api create-bucket --bucket ${self.input} --region ${var.region} ${var.region == "us-east-1" ? "" : "--create-bucket-configuration LocationConstraint=${var.region}"}"
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "python3 -c \"import boto3,sys; b=boto3.resource('s3').Bucket(sys.argv[1]); b.object_versions.delete(); b.delete()\" ${self.input}"
+  }
+}
+
+locals {
+  uploads_bucket     = var.create_buckets_with_cli ? terraform_data.bucket["${local.name}-uploads-${local.account_id}"].output : aws_s3_bucket.uploads[0].id
+  uploads_bucket_arn = "arn:aws:s3:::${local.uploads_bucket}"
+  web_bucket         = var.create_buckets_with_cli ? terraform_data.bucket["${local.name}-web-${local.account_id}"].output : aws_s3_bucket.frontend[0].id
+  web_bucket_arn     = "arn:aws:s3:::${local.web_bucket}"
+  web_bucket_domain  = "${local.web_bucket}.s3.${var.region}.amazonaws.com"
+}
+
 resource "aws_s3_bucket_public_access_block" "frontend" {
-  bucket                  = aws_s3_bucket.frontend.id
+  bucket                  = local.web_bucket
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -129,7 +158,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.web_bucket
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
@@ -138,7 +167,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 }
 
 resource "aws_s3_bucket_policy" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.web_bucket
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -146,7 +175,7 @@ resource "aws_s3_bucket_policy" "frontend" {
       Effect    = "Allow"
       Principal = { Service = "cloudfront.amazonaws.com" }
       Action    = "s3:GetObject"
-      Resource  = "${aws_s3_bucket.frontend.arn}/*"
+      Resource  = "${local.web_bucket_arn}/*"
       Condition = { StringEquals = { "AWS:SourceArn" = aws_cloudfront_distribution.main.arn } }
     }]
   })
@@ -169,7 +198,7 @@ locals {
 
 resource "aws_s3_object" "frontend" {
   for_each      = local.frontend_files
-  bucket        = aws_s3_bucket.frontend.id
+  bucket        = local.web_bucket
   key           = each.value
   source        = "${local.frontend_dir}/${each.value}"
   etag          = filemd5("${local.frontend_dir}/${each.value}")
@@ -178,7 +207,7 @@ resource "aws_s3_object" "frontend" {
 }
 
 resource "aws_s3_object" "frontend_config" {
-  bucket        = aws_s3_bucket.frontend.id
+  bucket        = local.web_bucket
   key           = "config.js"
   content_type  = "application/javascript"
   cache_control = "no-cache"

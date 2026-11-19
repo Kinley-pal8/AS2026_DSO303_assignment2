@@ -131,7 +131,7 @@ resource "aws_cloudfront_distribution" "main" {
 
   origin {
     origin_id                = "frontend"
-    domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
+    domain_name              = local.web_bucket_domain
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 

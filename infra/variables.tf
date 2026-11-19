@@ -151,3 +151,9 @@ variable "db_multi_az" {
   type        = bool
   default     = true
 }
+
+variable "create_buckets_with_cli" {
+  description = "Create the two S3 buckets with the AWS CLI instead of aws_s3_bucket (AWS Academy Learner Lab denies s3:GetBucketObjectLockConfiguration)."
+  type        = bool
+  default     = false
+}
