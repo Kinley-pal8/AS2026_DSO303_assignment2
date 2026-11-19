@@ -112,7 +112,7 @@ async function router() {
     <button class="secondary" id="logout">Sign out</button>`;
   $("#logout").onclick = logout;
 
-  const [, page, id] = (location.hash.replace(/^#\/?/, "") || "").split("/");
+  const [page, id] = (location.hash.replace(/^#\/?/, "") || "").split("/");
   view.innerHTML = `<p class="muted">Loading…</p>`;
   try {
     if (page === "exam" && id) return await examPage(id);
